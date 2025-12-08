@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ JPH Mobilná Aplikácia v3</title>
+    <style>
+        /* =======================================================
+           1. ZÁKLADNÉ MOBILNÉ ŠTYLY A APP BAR
+           ======================================================= */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #eef2f7;
+            color: #333;
+            padding-top: 56px; 
+        }
+        .container {
+            padding: 10px;
+        }
+        
+        /* App Bar */
+        .app-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 56px;
+            background-color: #1a73e8;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+
+        .app-title { font-size: 1.2em; font-weight: bold; }
+        .app-bar-actions { display: flex; gap: 15px; }
+        .settings-button { background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 5px; }
+        h2 { font-size: 1.3em; color: #1a73e8; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-top: 15px; }
+
+        /* =======================================================
+           2. KOMPAKTNÝ HODINOVÝ RIADOK S ROZDIELOM
+           ======================================================= */
+        .hour-card { background: #fff; border-radius: 8px; margin-bottom: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .jph-summary { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; background-color: #ffffff; border-bottom: 1px solid #eee; cursor: pointer; }
+        
+        .difference-display { font-size: 1.1em; font-weight: bold; width: 40px; text-align: right; padding-right: 5px; }
+        
+        .time-label { font-weight: bold; color: #333; width: 30%; text-align: left; font-size: 0.9em; }
+        .jph-input-group { display: flex; gap: 5px; width: 60%; align-items: center; font-size: 0.85em; }
+        .jph-input-group .target-jph-display { background-color: #f0f0f0; padding: 6px; border-radius: 4px; width: 40px; text-align: center; border: 1px solid #ddd; }
+        .jph-input-group label { font-size: 0.75em; color: #666; text-align: right; width: 35px; }
+        .jph-input-group input { width: 45px; padding: 6px; text-align: center; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
+        
+        /* Detaily porúch (teraz flex) */
+        .downtime-details { 
+            display: none; 
+            padding: 10px 15px; 
+            background-color: #f7f7f7; 
+            border-top: 1px solid #eee; 
+            flex-direction: column; 
+            gap: 10px; 
+        }
+
+        .downtime-details label, .modal-content label { display: block; font-weight: bold; margin-bottom: 3px; font-size: 0.9em; color: #555; }
+        .downtime-details input, .downtime-details select, .downtime-details textarea, 
+        .modal-content input, .modal-content select, .modal-content textarea {
+            width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em;
+        }
+
+        /* Sekcia pre dynamické poruchy */
+        .downtime-record {
+            background-color: #ffffff;
+            border: 1px solid #ddd;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 5px;
+        }
+
+        .downtime-record-row {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+            align-items: center;
+        }
+        
+        .remove-downtime {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        /* Zvysné štyly */
+        .modal { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.4); }
+        .modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 90%; max-height: 80vh; overflow-y: auto; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); }
+        .save-settings-button { width: 100%; padding: 12px; background-color: #2ecc71; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1em; margin-top: 20px; }
+        .save-settings-button.cancel { background-color: #888; }
+        .positive { color: #2ecc71; font-weight: bold; }
+        .negative { color: #e74c3c; font-weight: bold; }
+        .summary-row div { margin-bottom: 5px; display: flex; justify-content: space-between; }
+        .metric-label { font-weight: normal; color: #bdc3c7; }
+        
+        .json-editor {
+            font-family: monospace;
+            font-size: 0.8em;
+            resize: vertical;
+            min-height: 150px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-bar">
+        <div class="app-title">⚡ JPH Sledovanie Smeny</div>
+        <div class="app-bar-actions">
+            <button class="settings-button" onclick="openArchiveModal()">📦</button>
+            <button class="settings-button" onclick="openModal()">⚙️</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div style="background-color: #fff; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9em;">
+            **Linka/Stroj:** <span id="display-line">N/A</span> | **Smena:** <span id="display-shift">N/A</span> | **Cieľ JPH:** <span id="display-target">0</span>
+        </div>
+
+        <h2>⏱️ Hodinové Sledovanie</h2>
+        <div class="hourly-record" id="production-body">
+            <p style="text-align: center; color: #666;">Kliknite na ⚙️ hore pre nastavenie smeny a cieľa.</p>
+        </div>
+
+        <div class="summary-row">
+            <div>
+                <span>Celková Plánovaná JPH:</span>
+                <span id="total-target-jph">0</span>
+            </div>
+            <div>
+                <span>Celková Skutočná JPH:</span>
+                <span id="total-actual-jph">0</span>
+            </div>
+            <hr style="border-color: #5d6d7e; margin: 5px 0;">
+            <div>
+                <span>Celkový Rozdiel Smeny:</span>
+                <span id="total-difference" class="negative">0</span>
+            </div>
+            <div style="font-size: 0.9em; margin-top: 10px;">
+                <span class="metric-label">Celkové min. Porúch:</span>
+                <span id="total-downtime-min">0</span>
+            </div>
+            <div style="font-size: 0.9em;">
+                <span class="metric-label">Celkové Str. (Neprev.) JPH:</span>
+                <span id="total-propagated-loss" class="lost-units">0</span>
+            </div>
+        </div>
+
+        <button type="button" onclick="saveData()" style="width: 100%; padding: 12px; background-color: #2ecc71; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1.1em; margin-top: 15px; margin-bottom: 20px;">
+            ULOŽIŤ ZÁZNAM SMENY
+        </button>
+    </div>
+
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <h2 style="border-bottom: 1px solid #ddd;">⚙️ Nastavenia Smeny</h2>
+            
+            <label for="modal-date">Dátum:</label>
+            <input type="date" id="modal-date" value="2025-12-08">
+            
+            <label for="modal-line">Linka/Stroj (Hlavný Názov):</label>
+            <input type="text" id="modal-line" placeholder="Napr. Linka A3">
+            
+            <label for="modal-shift-type">Typ Smeny (8h / 12h):</label>
+            <select id="modal-shift-type" >
+                <option value="8-Ranna">8h - Ranná (06:00 - 14:00)</option>
+                <option value="8-Poobedna">8h - Popoludňajšia (14:00 - 22:00)</option>
+                <option value="8-Nocna">8h - Nočná (22:00 - 06:00)</option>
+                <option value="12-Denna">12h - Denná (06:00 - 18:00)</option>
+                <option value="12-Nocna">12h - Nočná (18:00 - 06:00)</option>
+            </select>
+            
+            <label for="modal-base-target-jph">Základná Cieľová JPH (hod.):</label>
+            <input type="number" id="modal-base-target-jph" placeholder="Napr. 120" value="120">
+
+            <hr style="margin: 20px 0; border-color: #eee;">
+
+            <h3>Nastavenie Staníc a Chýb</h3>
+            
+            <label for="modal-stations-list">1. Zoznam Staníc/OP (Každá stanica na nový riadok):</label>
+            <textarea id="modal-stations-list" rows="3" placeholder="OP100&#10;OP200&#10;Sklad" oninput="generateErrorFields()"></textarea>
+
+            <p style="font-size: 0.85em; color: #1a73e8; margin-top: 15px;">2. Priradenie Dôvodov Porúch:</p>
+            <div id="station-error-fields">
+                <p style="font-size: 0.8em; color: #555;">Zadajte zoznam staníc vyššie pre generovanie polí.</p>
+            </div>
+            
+            <input type="hidden" id="modal-stations-config-json"> <button class="save-settings-button" onclick="saveSettingsAndClose()">ULOŽIŤ NASTAVENIA</button>
+        </div>
+    </div>
+    
+    <div id="downtimeEntryModal" class="modal">
+        <div class="modal-content">
+            <h2 style="border-bottom: 1px solid #ddd;">➕ Nový Záznam Poruchy</h2>
+            
+            <p style="font-size: 0.85em; color: #555;">Zadajte detaily poruchy pre hodinu: <strong id="modal-downtime-time-label"></strong></p>
+
+            <label for="downtime-station">Stanica (OP):</label>
+            <select id="downtime-station" onchange="updateModalReasons(this)">
+                </select>
+
+            <label for="downtime-reason">Dôvod Poruchy:</label>
+            <select id="downtime-reason">
+                </select>
+
+            <label for="downtime-minutes">Trvanie (minút):</label>
+            <input type="number" id="downtime-minutes" placeholder="Napr. 15" value="0" min="0" max="60">
+
+            <label for="downtime-note">Presný Popis (Voliteľné):</label>
+            <textarea id="downtime-note" rows="2" placeholder="Presný popis: Zaseknutá súčiastka, porucha senzora, atď."></textarea>
+            
+            <input type="hidden" id="modal-target-hour-id">
+
+            <button class="save-settings-button" onclick="saveDowntimeEntry()">ULOŽIŤ ZÁZNAM PORUCHY</button>
+            <button class="save-settings-button cancel" style="margin-top: 5px;" onclick="closeDowntimeModal()">ZRUŠIŤ</button>
+        </div>
+    </div>
+
+    <div id="archiveModal" class="modal">
+        <div class="modal-content">
+            <h2 style="border-bottom: 1px solid #ddd;">📦 Archív Záznamov</h2>
+            
+            <label for="archive-search-date">Filtrovať podľa Dátumu:</label>
+            <input type="date" id="archive-search-date" onchange="performSearch()">
+            
+            <label for="archive-search-line">Filtrovať podľa Linky:</label>
+            <input type="text" id="archive-search-line" placeholder="Zadajte Linku (napr. A3)" oninput="performSearch()">
+            
+            <button class="save-settings-button" style="background-color: #007bff;" onclick="performSearch()">VYHĽADAŤ ZÁZNAMY</button>
+
+            <div class="search-results-list" id="search-results">
+                <p style="text-align: center; color: #666;">Zadajte kritériá pre vyhľadávanie.</p>
+            </div>
+            
+            <button class="save-settings-button cancel" onclick="closeArchiveModal()">ZAVRIEŤ</button>
+        </div>
+    </div>
+
+
+    <script>
+        // Definovanie hodinových rozsahov pre rôzne smeny
+        const SHIFT_HOURS = {
+            '8-Ranna': [6, 7, 8, 9, 10, 11, 12, 13],
+            '8-Poobedna': [14, 15, 16, 17, 18, 19, 20, 21],
+            '8-Nocna': [22, 23, 0, 1, 2, 3, 4, 5],
+            '12-Denna': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+            '12-Nocna': [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5]
+        };
+
+        // =======================================================
+        // INDEXEDDB LOGIKA
+        // =======================================================
+
+        let db;
+        const DB_NAME = 'JPH_Local_DB_v1';
+        const STORE_NAME = 'smena_records';
+
+        function openIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+                request.onerror = (event) => { console.error("IndexedDB error:", event.target.errorCode); reject("Chyba otvárania lokálnej databázy."); };
+                request.onsuccess = (event) => { db = event.target.result; resolve(db); };
+
+                request.onupgradeneeded = (event) => {
+                    db = event.target.result;
+                    const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                    objectStore.createIndex('date', 'date', { unique: false });
+                    objectStore.createIndex('line', 'line', { unique: false });
+                };
+            });
+        }
+
+        // =======================================================
+        // FUNKCIE PRE NASTAVENIA (ZJEDNODUŠENÉ)
+        // =======================================================
+        
+        function openModal() {
+            loadSettingsToModal();
+            document.getElementById('settingsModal').style.display = 'block';
+        }
+        function closeModal() { document.getElementById('settingsModal').style.display = 'none'; }
+        function openArchiveModal() { document.getElementById('archiveModal').style.display = 'block'; performSearch(); }
+        function closeArchiveModal() { document.getElementById('archiveModal').style.display = 'none'; }
+        
+        /** Generuje textové polia na zadávanie chýb pre každú stanicu */
+        function generateErrorFields() {
+            const stationsText = document.getElementById('modal-stations-list').value;
+            const stations = stationsText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            const container = document.getElementById('station-error-fields');
+            
+            let html = '';
+            
+            if (stations.length === 0) {
+                container.innerHTML = '<p style="font-size: 0.8em; color: #555;">Zadajte zoznam staníc vyššie pre generovanie polí.</p>';
+                return;
+            }
+
+            stations.forEach(station => {
+                // Skúsi načítať existujúce chyby z dočasne uloženej JSON štruktúry (ak existuje)
+                const existingConfigJSON = document.getElementById('modal-stations-config-json').value;
+                let existingErrors = '';
+                
+                try {
+                    const existingConfig = JSON.parse(existingConfigJSON || '{}');
+                    if (existingConfig[station] && Array.isArray(existingConfig[station])) {
+                        existingErrors = existingConfig[station].join('\n');
+                    }
+                } catch (e) {
+                    // Ignorovať chybu, ak je JSON prázdny/neúplný
+                }
+
+                html += `
+                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <label for="errors-${station}" style="color: #1a73e8;">Chyby pre Stanicu: **${station}** (Každá chyba na nový riadok)</label>
+                        <textarea id="errors-${station}" data-station="${station}" rows="3" placeholder="Zaseknutá súčiastka&#10;Porucha senzora" class="station-error-textarea">${existingErrors}</textarea>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        /** Uloží dáta z modalu do LocalStorage a konvertuje zoznamy na JSON */
+        function saveSettingsAndClose() {
+            const stationsText = document.getElementById('modal-stations-list').value;
+            const stations = stationsText.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+            const stationConfig = {};
+            
+            // Konverzia zo zjednodušených polí na JSON štruktúru
+            stations.forEach(station => {
+                const textarea = document.getElementById(`errors-${station}`);
+                if (textarea) {
+                    const errors = textarea.value.split('\n').map(e => e.trim()).filter(e => e.length > 0);
+                    stationConfig[station] = errors;
+                } else {
+                    stationConfig[station] = []; // Prázdny zoznam, ak nie sú zadané chyby
+                }
+            });
+
+            // Uložíme finálny JSON string
+            const finalJSON = JSON.stringify(stationConfig);
+            document.getElementById('modal-stations-config-json').value = finalJSON;
+
+            const settings = {
+                date: document.getElementById('modal-date').value,
+                line: document.getElementById('modal-line').value,
+                shiftType: document.getElementById('modal-shift-type').value,
+                baseTargetJPH: document.getElementById('modal-base-target-jph').value,
+                stationsConfig: finalJSON // Uložíme finálny JSON
+            };
+
+            localStorage.setItem('jph_settings', JSON.stringify(settings));
+            applySettings(settings);
+            closeModal();
+        }
+
+        function loadSettingsToModal() {
+            const savedSettings = localStorage.getItem('jph_settings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                document.getElementById('modal-date').value = settings.date || new Date().toISOString().substring(0, 10);
+                document.getElementById('modal-line').value = settings.line || "";
+                document.getElementById('modal-shift-type').value = settings.shiftType || "8-Ranna";
+                document.getElementById('modal-base-target-jph').value = settings.baseTargetJPH || 120;
+                
+                // --- NOVÁ LOGIKA PRE JEDNODUCHÉ POLIA ---
+                let stationsText = '';
+                
+                try {
+                    const config = JSON.parse(settings.stationsConfig || '{}');
+                    const stations = Object.keys(config);
+                    stationsText = stations.join('\n');
+                    
+                    // Dočasne uložíme finálny JSON pre použitie v generateErrorFields
+                    document.getElementById('modal-stations-config-json').value = settings.stationsConfig;
+
+                } catch (e) {
+                    // Pri chybe JSONu sa nastaví defaultné pole
+                    stationsText = 'OP100\nOP200\nSklad';
+                }
+                
+                document.getElementById('modal-stations-list').value = stationsText;
+                generateErrorFields(); // Spustíme generovanie polí
+            }
+        }
+
+        function applySettings(settings) {
+            document.getElementById('display-line').textContent = settings.line || 'N/A';
+            document.getElementById('display-shift').textContent = settings.shiftType;
+            document.getElementById('display-target').textContent = settings.baseTargetJPH;
+
+            let stationsConfig;
+            try {
+                stationsConfig = JSON.parse(settings.stationsConfig);
+            } catch (e) {
+                console.error("Chyba spracovania JSON konfigurácie staníc.", e);
+                stationsConfig = {};
+            }
+
+            generateHours(settings.shiftType, parseInt(settings.baseTargetJPH) || 0, stationsConfig);
+        }
+        
+        // =======================================================
+        // LOGIKA DOWNTIME MODALU
+        // =======================================================
+        
+        function closeDowntimeModal() {
+            document.getElementById('downtimeEntryModal').style.display = 'none';
+        }
+
+        function openDowntimeModal(button) {
+            const hourCard = button.closest('.hour-card');
+            const hour = hourCard.getAttribute('data-hour');
+            const timeLabel = hourCard.querySelector('.time-label').textContent;
+
+            document.getElementById('modal-target-hour-id').value = hour;
+            document.getElementById('modal-downtime-time-label').textContent = timeLabel;
+
+            loadStationsToDowntimeModal();
+            
+            document.getElementById('downtime-minutes').value = 0;
+            document.getElementById('downtime-note').value = '';
+            
+            document.getElementById('downtimeEntryModal').style.display = 'block';
+        }
+        
+        function loadStationsToDowntimeModal() {
+            const settings = JSON.parse(localStorage.getItem('jph_settings'));
+            if (!settings || !settings.stationsConfig) return;
+
+            let config;
+            try {
+                config = JSON.parse(settings.stationsConfig);
+            } catch (e) {
+                console.error("Chyba JSON konfigurácie staníc.");
+                return;
+            }
+
+            const stationSelect = document.getElementById('downtime-station');
+            const stations = Object.keys(config);
+
+            let options = '<option value="" disabled selected>-- Vyber Stanicu --</option>';
+            options += stations.map(s => `<option value="${s}">${s}</option>`).join('');
+            stationSelect.innerHTML = options;
+            
+            document.getElementById('downtime-reason').innerHTML = '<option value="" disabled selected>-- Najprv vyber Stanicu --</option>';
+        }
+        
+        function updateModalReasons(selectElement) {
+            const station = selectElement.value;
+            const settings = JSON.parse(localStorage.getItem('jph_settings'));
+            if (!settings || !settings.stationsConfig) return;
+            
+            let config = JSON.parse(settings.stationsConfig);
+            const reasons = config[station] || ['Iný Dôvod'];
+            
+            const reasonOptions = reasons.map(r => `<option value="${r}">${r}</option>`).join('');
+            const finalOptions = `<option value="" disabled selected>-- Dôvod poruchy --</option>${reasonOptions}<option value="Iný Dôvod">Iný Dôvod (vyplniť nižšie)</option>`;
+            
+            document.getElementById('downtime-reason').innerHTML = finalOptions;
+        }
+
+        function saveDowntimeEntry() {
+            const hour = document.getElementById('modal-target-hour-id').value;
+            const station = document.getElementById('downtime-station').value;
+            const reason = document.getElementById('downtime-reason').value;
+            const minutes = parseInt(document.getElementById('downtime-minutes').value) || 0;
+            const note = document.getElementById('downtime-note').value.trim();
+
+            if (!station || !reason || minutes <= 0) {
+                alert('Prosím, vyberte Stanicu, Dôvod a zadajte minúty (> 0).');
+                return;
+            }
+            
+            const hourCard = document.querySelector(`.hour-card[data-hour="${hour}"]`);
+            const recordContainer = hourCard.querySelector('.downtime-records-container');
+            
+            const finalReason = reason === 'Iný Dôvod' && note ? `Iný Dôvod: ${note}` : (reason || note);
+
+            // Pridanie nového záznamu ako HTML element (viditeľný)
+            const newRecordHTML = `
+                <div class="downtime-record">
+                    <p style="margin: 0; font-size: 0.9em;">
+                        [**${station}**] ${finalReason} (${minutes}m)
+                        <button class="remove-downtime" onclick="this.closest('.downtime-record').remove(); calculateTotal(true);">❌</button>
+                    </p>
+                    <input type="hidden" class="downtime-station-saved" value="${station}">
+                    <input type="hidden" class="downtime-reason-saved" value="${finalReason}">
+                    <input type="hidden" class="downtime-minutes-saved" value="${minutes}">
+                </div>
+            `;
+            
+            recordContainer.insertAdjacentHTML('beforeend', newRecordHTML);
+            
+            calculateTotal(true);
+            closeDowntimeModal();
+        }
+
+        // =======================================================
+        // FUNKCIE PRE GENERÁCIU HODÍN A VÝPOČTY
+        // =======================================================
+
+        function getStationOptionsHTML(config) {
+            const stations = Object.keys(config);
+            let options = '<option value="" disabled selected>-- Vyber Stanicu --</option>';
+            options += stations.map(s => `<option value="${s}">${s}</option>`).join('');
+            return options;
+        }
+
+        function generateHours(shiftType, baseTarget, stationsConfig) {
+            const container = document.getElementById('production-body');
+            
+            if (!baseTarget || !shiftType || !SHIFT_HOURS[shiftType] || Object.keys(stationsConfig).length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666;">Nastavte smenu, cieľ JPH a Stanice v Nastaveniach (⚙️).</p>';
+                document.getElementById('total-target-jph').textContent = 0;
+                document.getElementById('total-actual-jph').textContent = 0;
+                document.getElementById('total-difference').textContent = 0;
+                document.getElementById('total-downtime-min').textContent = 0;
+                document.getElementById('total-propagated-loss').textContent = 0;
+                return;
+            }
+
+            const hours = SHIFT_HOURS[shiftType];
+            let htmlContent = '';
+            
+            hours.forEach(hour => {
+                const hourDisplay = hour.toString().padStart(2, '0');
+                const nextHour = (hour + 1) % 24;
+                const nextHourDisplay = nextHour.toString().padStart(2, '0');
+                const timeLabel = `${hourDisplay}:00 - ${nextHourDisplay}:00`;
+
+                htmlContent += `
+                    <div class="hour-card" data-hour="${hour}">
+                        <div class="jph-summary" onclick="toggleDetails(this)">
+                            <span class="time-label">${timeLabel}</span>
+                            <div class="jph-input-group">
+                                <label>Pož.:</label>
+                                <span class="target-jph-display" data-base-target="${baseTarget}">${baseTarget}</span>
+                                <label>Skut.:</label>
+                                <input type="number" class="actual-jph" placeholder="0" oninput="calculateRow(this)" value="0">
+                            </div>
+                            <div class="difference-display negative">0</div>
+                        </div>
+                        <div class="downtime-details" style="display:none;">
+                            
+                            <hr style="border-color: #eee;">
+
+                            <div class="downtime-records-container">
+                                </div>
+
+                            <button type="button" class="save-settings-button" style="background-color: #007bff; padding: 8px; margin-top: 5px;" onclick="openDowntimeModal(this)">
+                                + PRIDAŤ ZÁZNAM PORUCHY
+                            </button>
+                            
+                            </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = htmlContent;
+            calculateTotal(true); 
+        }
+
+        function calculateRow(inputElement) {
+            const hourCard = inputElement.closest('.hour-card');
+            const targetJPH = parseInt(hourCard.querySelector('.target-jph-display').textContent) || 0;
+            const actualJPH = parseInt(inputElement.value) || 0;
+            const difference = actualJPH - targetJPH;
+            const differenceCell = hourCard.querySelector('.difference-display'); 
+
+            differenceCell.textContent = difference;
+            differenceCell.classList.remove('positive', 'negative');
+            
+            if (difference > 0) {
+                differenceCell.classList.add('positive');
+            } else if (difference < 0) {
+                differenceCell.classList.add('negative');
+            }
+            
+            calculateTotal(true); 
+        }
+        
+        function calculateTotal(recalculateLoss = false) {
+            let totalActualJPH = 0;
+            let totalTargetJPH = 0;
+            let totalDowntimeMin = 0;
+            let totalPropagatedLoss = 0;
+            
+            const hourCards = document.querySelectorAll('.hour-card');
+            let cumulativeLoss = 0;
+
+            hourCards.forEach((card, index) => {
+                const targetDisplay = card.querySelector('.target-jph-display');
+                const baseTarget = parseInt(targetDisplay.getAttribute('data-base-target')) || 0;
+                const actualInput = card.querySelector('.actual-jph');
+                const actualJPH = parseInt(actualInput.value) || 0;
+                
+                let hourlyDowntime = 0;
+                card.querySelectorAll('.downtime-minutes-saved').forEach(input => {
+                    hourlyDowntime += parseInt(input.value) || 0;
+                });
+                totalDowntimeMin += hourlyDowntime;
+
+                const remainingHours = hourCards.length - index;
+                let newTarget = baseTarget;
+                
+                if (recalculateLoss) {
+                    if (cumulativeLoss < 0 && remainingHours > 0) {
+                        const lossToDistribute = Math.abs(cumulativeLoss);
+                        const lossPerRemainingHour = Math.ceil(lossToDistribute / remainingHours);
+                        newTarget = baseTarget + lossPerRemainingHour;
+                        cumulativeLoss += lossPerRemainingHour; 
+                        totalPropagatedLoss += lossPerRemainingHour;
+                    } else if (cumulativeLoss > 0) {
+                        const gainToDistribute = cumulativeLoss;
+                        const reduction = Math.min(gainToDistribute, baseTarget);
+                        newTarget = baseTarget - reduction;
+                        cumulativeLoss -= reduction;
+                    } 
+                }
+                
+                targetDisplay.textContent = newTarget;
+                const currentTarget = newTarget;
+                const difference = actualJPH - currentTarget;
+                const differenceCell = card.querySelector('.difference-display');
+
+                differenceCell.textContent = difference;
+                cumulativeLoss += difference; 
+
+                totalActualJPH += actualJPH;
+                totalTargetJPH += baseTarget; 
+                
+                differenceCell.classList.remove('positive', 'negative');
+                if (difference > 0) {
+                    differenceCell.classList.add('positive');
+                } else if (difference < 0) {
+                    differenceCell.classList.add('negative');
+                }
+            });
+
+            document.getElementById('total-target-jph').textContent = totalTargetJPH;
+            document.getElementById('total-actual-jph').textContent = totalActualJPH;
+            document.getElementById('total-downtime-min').textContent = totalDowntimeMin;
+            document.getElementById('total-propagated-loss').textContent = totalPropagatedLoss;
+
+            const totalDifference = totalActualJPH - totalTargetJPH;
+            document.getElementById('total-difference').textContent = totalDifference;
+        }
+
+        // =======================================================
+        // FUNKCIE PRE UKLADANIE A ARCHÍV
+        // =======================================================
+        
+        function saveRecordToDB(record) {
+            return new Promise((resolve, reject) => {
+                if (!db) return reject("Databáza nie je otvorená. Skúste obnoviť stránku.");
+                
+                const transaction = db.transaction([STORE_NAME], 'readwrite');
+                const store = transaction.objectStore(STORE_NAME);
+                
+                const request = store.add(record);
+
+                request.onsuccess = () => {
+                    resolve("Záznam úspešne uložený lokálne.");
+                };
+
+                request.onerror = (event) => {
+                    console.error("Chyba ukladania záznamu:", event.target.error);
+                    reject("Chyba pri ukladaní záznamu.");
+                };
+            });
+        }
+
+        function saveData() {
+            const settings = JSON.parse(localStorage.getItem('jph_settings')) || {};
+            const hourCards = document.querySelectorAll('.hour-card');
+            
+            if (hourCards.length === 0 || !settings.date) {
+                alert("Prosím, najprv nastavte smenu a vyplňte dáta.");
+                return;
+            }
+
+            const hourlyData = Array.from(hourCards).map(card => {
+                const downtimeRecords = Array.from(card.querySelectorAll('.downtime-record')).map(record => {
+                    const selectedStation = record.querySelector('.downtime-station-saved').value;
+                    const finalReason = record.querySelector('.downtime-reason-saved').value;
+                    const downtimeMin = parseInt(record.querySelector('.downtime-minutes-saved').value) || 0;
+                    
+                    return {
+                        station: selectedStation,
+                        minutes: downtimeMin,
+                        reason: finalReason
+                    };
+                }).filter(rec => rec.minutes > 0);
+
+                return {
+                    time: card.querySelector('.time-label').textContent,
+                    target: parseInt(card.querySelector('.target-jph-display').textContent) || 0,
+                    actual: parseInt(card.querySelector('.actual-jph').value) || 0,
+                    // ODSTRÁNENÁ POZNÁMKA K HODINE
+                    downtimeRecords: downtimeRecords,
+                    totalDowntime: downtimeRecords.reduce((sum, rec) => sum + rec.minutes, 0)
+                };
+            });
+            
+            const totalData = {
+                target_total: document.getElementById('total-target-jph').textContent,
+                actual_total: document.getElementById('total-actual-jph').textContent,
+                downtime_total: document.getElementById('total-downtime-min').textContent,
+                loss_propagated: document.getElementById('total-propagated-loss').textContent,
+                // ODSTRÁNENÁ SUMMARIZAČNÁ POZNÁMKA
+                summary: 'Nezadané (Funkcia odstránená)'
+            };
+
+            const finalRecord = {
+                date: settings.date,
+                line: settings.line,
+                shiftType: settings.shiftType,
+                baseTargetJPH: settings.baseTargetJPH,
+                hourlyData: hourlyData,
+                totalData: totalData,
+                timestamp: new Date().toISOString()
+            };
+
+            saveRecordToDB(finalRecord)
+                .then(() => {
+                    alert("✅ Záznam smeny úspešne uložený lokálne v Archíve!");
+                    document.querySelectorAll('.actual-jph').forEach(input => input.value = 0);
+                    document.querySelectorAll('.downtime-records-container').forEach(container => container.innerHTML = '');
+                    // document.querySelectorAll('.hour-summary').forEach(input => input.value = ''); // ODSTRÁNENÉ
+                    // document.getElementById('summary').value = ''; // ODSTRÁNENÉ
+                    calculateTotal(true);
+                })
+                .catch((error) => {
+                    alert(`❌ Chyba pri ukladaní: ${error}`);
+                });
+        }
+        
+        function getAllRecords() {
+            return new Promise((resolve, reject) => {
+                if (!db) return reject("Databáza nie je otvorená.");
+
+                const transaction = db.transaction([STORE_NAME], 'readonly');
+                const store = transaction.objectStore(STORE_NAME);
+                const request = store.getAll();
+
+                request.onsuccess = (event) => {
+                    resolve(event.target.result);
+                };
+
+                request.onerror = (event) => {
+                    reject(event.target.error);
+                };
+            });
+        }
+        
+        function performSearch() {
+            const searchDate = document.getElementById('archive-search-date').value;
+            const searchLine = document.getElementById('archive-search-line').value;
+            const resultsContainer = document.getElementById('search-results');
+            resultsContainer.innerHTML = '<p style="text-align: center; color: #666;">Vyhľadávam...</p>';
+
+            getAllRecords()
+                .then(records => {
+                    const filteredRecords = records.filter(record => {
+                        const dateMatch = !searchDate || record.date === searchDate;
+                        const lineMatch = !searchLine || record.line.toLowerCase().includes(searchLine.toLowerCase());
+                        return dateMatch && lineMatch;
+                    });
+                    displaySearchResults(filteredRecords, resultsContainer);
+                })
+                .catch(error => {
+                    resultsContainer.innerHTML = `<p style="color: red;">Chyba načítania: ${error}</p>`;
+                });
+        }
+        
+        function displaySearchResults(records, container) {
+            if (records.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666;">Nenašli sa žiadne záznamy.</p>';
+                return;
+            }
+
+            container.innerHTML = records.map(record => {
+                const totalDiff = parseInt(record.totalData.actual_total) - parseInt(record.totalData.target_total);
+                const diffClass = totalDiff >= 0 ? 'positive' : 'negative';
+                
+                const dateObj = new Date(record.timestamp);
+                const timeStr = dateObj.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' });
+                
+                return `
+                    <div class="archive-item" onclick="toggleArchiveDetails(this)">
+                        <strong>${record.date}</strong> - ${record.shiftType} | Linka: <strong>${record.line}</strong> (Uložené: ${timeStr})
+                        <div class="archive-detail" style="display:none;">
+                            <p><strong>Súhrn:</strong> Cieľ: ${record.totalData.target_total}, Skutoč.: ${record.totalData.actual_total}, Rozdiel: <span class="${diffClass}">${totalDiff}</span></p>
+                            <p>Celkom Poruchy: ${record.totalData.downtime_total} min</p>
+                            <p style="margin-top: 10px;"><strong>Hodinový Detail:</strong></p>
+                            <ul>
+                                ${record.hourlyData.map(h => 
+                                    `<li>${h.time}: JPH ${h.actual} / Cieľ ${h.target} | Porúch: ${h.totalDowntime} min (${h.downtimeRecords.map(d=>`[${d.station}]: ${d.reason} (${d.minutes}m)`).join(', ')})</li>`
+                                ).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function toggleArchiveDetails(item) {
+            const detail = item.querySelector('.archive-detail');
+            detail.style.display = detail.style.display === 'block' ? 'none' : 'block';
+        }
+
+        function toggleDetails(jphSummaryElement) {
+            const hourCard = jphSummaryElement.closest('.hour-card');
+            const details = hourCard.querySelector('.downtime-details');
+            
+            if (details.style.display === 'flex') {
+                details.style.display = 'none';
+            } else {
+                details.style.display = 'flex';
+            }
+        }
+
+        // =======================================================
+        // INICIALIZÁCIA
+        // =======================================================
+        window.onload = function() {
+            openIndexedDB()
+                .then(() => {
+                    loadSettings();
+                    window.onclick = function(event) {
+                        const modalSettings = document.getElementById('settingsModal');
+                        const modalArchive = document.getElementById('archiveModal');
+                        const modalDowntime = document.getElementById('downtimeEntryModal');
+
+                        if (event.target == modalSettings) {
+                            closeModal();
+                        }
+                        if (event.target == modalArchive) {
+                            closeArchiveModal();
+                        }
+                        if (event.target == modalDowntime) {
+                            closeDowntimeModal();
+                        }
+                    }
+                })
+                .catch((error) => {
+                    alert(`Kritická chyba: Nepodarilo sa inicializovať lokálnu databázu. (${error})`);
+                });
+        };
+    </script>
+</body>
+</html>
