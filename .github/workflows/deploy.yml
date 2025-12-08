@@ -1,0 +1,35 @@
+# .github/workflows/deploy.yml
+
+name: Deploy Cordova Web to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main  # Spustí sa po každom nahraní do vetvy 'main'
+  workflow_dispatch: # Umožňuje spustenie manuálne z rozhrania GitHub
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies (if you have npm packages in Cordova project)
+      run: npm install
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        # Nastavte na cestu k webovemu obsahu v Cordova projekte
+        publish_dir: ./www 
+        # Voliteľné: nastaviť hlavnú vetvu, kam sa nasadzuje obsah
+        publish_branch: gh-pages
