@@ -1,6 +1,6 @@
-# .github/workflows/deploy.yml
+# .github/workflows/build-apk.yml
 
-name: Deploy Cordova Web to GitHub Pages
+name: Cordova APK Build
 
 on:
   push:
@@ -9,29 +9,55 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    name: Deploy
+  build_android:
     runs-on: ubuntu-latest
     
+    # Oprávnenia sú potrebné pre nahrávanie finálneho APK ako "artefaktu"
     permissions:
       contents: write
-      pages: write
-      id-token: write
+      packages: write
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Node.js
+    # 1. NASTAVENIE JAVA a ANDROID SDK
+    - name: Set up Java and Android SDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v2
+
+    # 2. NASTAVENIE NODE.JS a CORDOVA
+    - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    # 💥 ODSTRÁŇTE CHYBNÝ KROK INŠTALÁCIE ZÁVISLOSTÍ (npm install) 💥
+    - name: Install Cordova and dependencies
+      # Installujeme Cordova CLI a platformy pre zostavenie
+      run: |
+        npm install -g cordova
+        npm install
+        cordova platform add android --no-telemetry
 
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
+    # 3. KOPÍROVANIE KÓDU DO WWW (Pre istotu, ak by bol www zmazaný)
+    # Tento krok nie je potrebný, ak ste projekt nahrali správne, ale nikoho nebolí.
+    - name: Copy WWW files (Skip if WWW is correct)
+      run: cp -r www/* platforms/android/app/src/main/assets/www/
+
+    # 4. SAMOTNÁ KOMPILÁCIA APK
+    - name: Build Cordova Android App (Unsigned APK)
+      run: |
+        cordova build android --release --no-telemetry
+        # Finalny APK subor sa nachadza v tomto priecinku
+        ls -l platforms/android/app/build/outputs/apk/release/
+
+    # 5. NAHRANIE APK SÚBORU AKO ARTEFAKTU
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./www 
-        publish_branch: gh-pages
+        name: HlasenieApp-release-unsigned
+        path: platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
