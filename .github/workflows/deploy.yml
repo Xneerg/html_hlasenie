@@ -5,19 +5,18 @@ name: Deploy Cordova Web to GitHub Pages
 on:
   push:
     branches:
-      - main  # Spustí sa po každom nahraní do vetvy 'main'
-  workflow_dispatch: # Umožňuje spustenie manuálne z rozhrania GitHub
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy
     runs-on: ubuntu-latest
     
-    # 💥 DÔLEŽITÉ: OPRÁVNENIA NA ZÁPIS 💥
     permissions:
-      contents: write  # Toto je kľúčové pre peaceiris/actions-gh-pages
-      pages: write     # (Pre istotu)
-      id-token: write  # (Pre istotu)
+      contents: write
+      pages: write
+      id-token: write
     
     steps:
     - name: Checkout code
@@ -28,15 +27,11 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install dependencies (if you have npm packages in Cordova project)
-      # Odkomentujte, ak by váš Cordova projekt mal externé npm závislosti
-      # run: npm install
+    # 💥 ODSTRÁŇTE CHYBNÝ KROK INŠTALÁCIE ZÁVISLOSTÍ (npm install) 💥
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        # Nastavte na cestu k webovemu obsahu v Cordova projekte
         publish_dir: ./www 
-        # Voliteľné: nastaviť hlavnú vetvu, kam sa nasadzuje obsah
         publish_branch: gh-pages
