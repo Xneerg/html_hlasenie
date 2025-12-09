@@ -1,49 +1,57 @@
-# Súbor: .github/workflows/android_build.yml
-name: Build Android APK with Cordova
+# .github/workflows/build-apk.yml
+
+name: Cordova APK Build
 
 on:
   push:
     branches:
-      - master # Spustí sa pri každom pushi na vetvu master
+      - main
+  workflow_dispatch:
 
 jobs:
   build_android:
     runs-on: ubuntu-latest
-
+    
+    # Oprávnenia sú potrebné pre nahrávanie finálneho APK ako "artefaktu"
+    permissions:
+      contents: write
+      packages: write
+    
     steps:
-    - name: ⬇️ Checkout kód
+    - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: 🔧 Nastavenie Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: 🔧 Inštalácia Cordova
-      run: npm install -g cordova
-
-    # ❗ PRIDANÝ OPRAVNÝ KROK: Vytvorenie štruktúry Android
-    - name: ⚙️ Pridanie platformy Android do projektu
-      run: cordova platform add android
-
-    - name: 🛠️ Príprava prostredia Android SDK
-      # Nastaví Android SDK a Javu, ktoré sú potrebné pre kompiláciu
+    # 1. NASTAVENIE JAVA a ANDROID SDK
+    - name: Set up Java and Android SDK
       uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
-        
-    - name: 🔨 Cordova Build pre Android (Debug APK)
-      # Spustí skutočnú kompiláciu aplikácie
-      run: cordova build android --debug
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v2
 
-    - name: 📦 Nahranie APK
-      # Uloží výsledný súbor APK, aby ste si ho mohli stiahnuť
+    # 2. NASTAVENIE NODE.JS a CORDOVA
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Cordova and dependencies
+      run: |
+        npm install -g cordova
+        npm install
+        cordova platform add android --no-telemetry
+
+    # 3. SAMOTNÁ KOMPILÁCIA
+    - name: Build Cordova Android App (Release Bundle)
+      # Pre novšie verzie Gradle sa automaticky generuje App Bundle (.aab)
+      run: |
+        cordova build android --release --no-telemetry
+        
+    # 5. NAHRANIE ARTEFAKTU (ZMENENÉ NA .AAB)
+    - name: Upload Build Artifact (AAB)
       uses: actions/upload-artifact@v4
       with:
-        path: platforms/android/app/build/outputs/apk/debug/app-debug.apk
-        name: android-debug-apk-${{ github.sha }}
-        retention-days: 5
-        
-    - name: ✅ Ukončené
-      run: echo "Buildovanie APK dokončené a artefakt je pripravený na stiahnutie."
+        name: HlasenieApp-release-unsigned.aab
+        # KĽÚČOVÁ ZMENA CESTY
+        path: platforms/android/app/build/outputs/bundle/release/app-release.aab
