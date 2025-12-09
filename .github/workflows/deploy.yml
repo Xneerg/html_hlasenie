@@ -1,63 +1,49 @@
-# .github/workflows/build-apk.yml
-
-name: Cordova APK Build
+# Súbor: .github/workflows/android_build.yml
+name: Build Android APK with Cordova
 
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:
+      - master # Spustí sa pri každom pushi na vetvu master
 
 jobs:
   build_android:
     runs-on: ubuntu-latest
-    
-    # Oprávnenia sú potrebné pre nahrávanie finálneho APK ako "artefaktu"
-    permissions:
-      contents: write
-      packages: write
-    
+
     steps:
-    - name: Checkout code
+    - name: ⬇️ Checkout kód
       uses: actions/checkout@v4
 
-    # 1. NASTAVENIE JAVA a ANDROID SDK
-    - name: Set up Java and Android SDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-    - name: Set up Android SDK
-      uses: android-actions/setup-android@v2
-
-    # 2. NASTAVENIE NODE.JS a CORDOVA
-    - name: Set up Node.js
+    - name: 🔧 Nastavenie Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
 
-    - name: Install Cordova and dependencies
-      # Installujeme Cordova CLI a platformy pre zostavenie
-      run: |
-        npm install -g cordova
-        npm install
-        cordova platform add android --no-telemetry
+    - name: 🔧 Inštalácia Cordova
+      run: npm install -g cordova
 
-    # 3. KOPÍROVANIE KÓDU DO WWW (Pre istotu, ak by bol www zmazaný)
-    # Tento krok nie je potrebný, ak ste projekt nahrali správne, ale nikoho nebolí.
-    - name: Copy WWW files (Skip if WWW is correct)
-      run: cp -r www/* platforms/android/app/src/main/assets/www/
+    # ❗ PRIDANÝ OPRAVNÝ KROK: Vytvorenie štruktúry Android
+    - name: ⚙️ Pridanie platformy Android do projektu
+      run: cordova platform add android
 
-    # 4. SAMOTNÁ KOMPILÁCIA APK
-    - name: Build Cordova Android App (Unsigned APK)
-      run: |
-        cordova build android --release --no-telemetry
-        # Finalny APK subor sa nachadza v tomto priecinku
-        ls -l platforms/android/app/build/outputs/apk/release/
+    - name: 🛠️ Príprava prostredia Android SDK
+      # Nastaví Android SDK a Javu, ktoré sú potrebné pre kompiláciu
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: 🔨 Cordova Build pre Android (Debug APK)
+      # Spustí skutočnú kompiláciu aplikácie
+      run: cordova build android --debug
 
-    # 5. NAHRANIE APK SÚBORU AKO ARTEFAKTU
-    - name: Upload APK artifact
+    - name: 📦 Nahranie APK
+      # Uloží výsledný súbor APK, aby ste si ho mohli stiahnuť
       uses: actions/upload-artifact@v4
       with:
-        name: HlasenieApp-release-unsigned
-        path: platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk
+        path: platforms/android/app/build/outputs/apk/debug/app-debug.apk
+        name: android-debug-apk-${{ github.sha }}
+        retention-days: 5
+        
+    - name: ✅ Ukončené
+      run: echo "Buildovanie APK dokončené a artefakt je pripravený na stiahnutie."
